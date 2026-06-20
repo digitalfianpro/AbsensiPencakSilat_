@@ -164,6 +164,7 @@
             const [isRefreshing, setIsRefreshing] = useState(false);
             const [deferredPrompt, setDeferredPrompt] = useState(null);
             const [isLoadingData, setIsLoadingData] = useState(true);
+            const [isAppInstalled, setIsAppInstalled] = useState(false);
             
             // Sistem Notifikasi (Toast) & Konfirmasi
             const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
@@ -233,8 +234,13 @@
                 }
             }, [isAuthenticated]);
 
-            // Membangun installer PWA terpadu
+            // Deteksi Status Instalasi Aplikasi PWA dan Membangun installer terpadu
             useEffect(() => {
+                // 1. Cek apakah berjalan dalam mode standalone (sudah terinstal)
+                if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+                    setIsAppInstalled(true);
+                }
+
                 const manifest = {
                     name: "Absensi Pencak Silat",
                     short_name: "Silat App",
@@ -268,8 +274,20 @@
                     e.preventDefault();
                     setDeferredPrompt(e);
                 };
+
+                const handleAppInstalled = () => {
+                    setIsAppInstalled(true);
+                    setDeferredPrompt(null);
+                    showToast('Aplikasi Pencak Silat berhasil diinstal!');
+                };
+
                 window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-                return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+                window.addEventListener('appinstalled', handleAppInstalled);
+
+                return () => {
+                    window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+                    window.removeEventListener('appinstalled', handleAppInstalled);
+                };
             }, []);
 
             useEffect(() => {
@@ -524,6 +542,26 @@
                 }, 750);
             };
 
+            // Menangani trigger instalasi aplikasi PWA
+            const handleInstallApp = async () => {
+                if (isAppInstalled) {
+                    showToast('Aplikasi sudah terinstal di perangkat Anda!');
+                    return;
+                }
+                
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    if (outcome === 'accepted') {
+                        setIsAppInstalled(true);
+                        setDeferredPrompt(null);
+                    }
+                } else {
+                    // Panduan instalasi manual sebagai fallback jika API tidak aktif
+                    showToast('Buka menu browser Anda (titik tiga) lalu klik "Tambahkan ke Layar Utama" / "Instal Aplikasi".');
+                }
+            };
+
             // ==========================================
             // KOMPONEN NOTIFIKASI TOAST & CONFIRM DIALOG
             // ==========================================
@@ -566,7 +604,6 @@
                         <div className="absolute top-[5%] left-[5%] w-48 h-48 sm:w-[400px] sm:h-[400px] bg-white rounded-full blur-[60px] opacity-60 pointer-events-none"></div>
                         <div className="absolute bottom-[5%] right-[5%] w-48 h-48 sm:w-[350px] sm:h-[350px] bg-amber-200/30 rounded-full blur-[80px] opacity-60 pointer-events-none"></div>
 
-                        {}
                         <div className="bg-white/90 backdrop-blur-md rounded-3xl shadow-[0_15px_40px_-15px_rgba(0,0,0,0.08)] border border-white overflow-hidden w-full max-w-sm relative z-10 p-5 sm:p-10">
                             
                             <div className="flex flex-col items-center mb-6">
@@ -627,7 +664,6 @@
                                 <span className="bg-white/90 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest relative z-10 rounded-full">Atau</span>
                             </div>
 
-                            {}
                             <button 
                                 onClick={handleViewerLogin}
                                 className="mt-4 w-full py-2.5 px-4 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold rounded-xl shadow-xs border border-amber-200 transition-all text-xs tracking-wide flex items-center justify-center gap-1.5 group"
@@ -665,7 +701,6 @@
                             </div>
                         </div>
 
-                        {}
                         <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-xs print:hidden border border-slate-100 mb-3 sm:mb-6 flex flex-col gap-4">
                             
                             {/* Baris 1: Brand/Logo & Aksi Sejajar */}
@@ -682,8 +717,19 @@
                                     </div>
                                 </div>
 
-                                {/* Tombol Refresh dan Logout yang Presisi, Bebas Overlap (Solusi image_b24601.png) */}
+                                {/* Tombol Refresh, Instalasi PWA, dan Logout yang Presisi */}
                                 <div className="flex items-center gap-1.5 shrink-0">
+                                    {/* Tombol Instal Aplikasi (PWA) Hanya Muncul jika belum terinstal */}
+                                    {!isAppInstalled && (
+                                        <button 
+                                            onClick={handleInstallApp}
+                                            className="p-1.5 sm:p-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs flex items-center gap-1 shadow-sm transition-all focus:outline-none focus:ring-1 focus:ring-amber-400"
+                                            title="Instal Aplikasi ke HP"
+                                        >
+                                            <Download className="w-4 h-4" />
+                                            <span className="hidden md:inline">Instal Aplikasi</span>
+                                        </button>
+                                    )}
                                     <button 
                                         onClick={handleRefresh}
                                         className="p-1.5 sm:p-2 rounded-lg bg-slate-50 text-slate-600 hover:bg-amber-50 hover:text-amber-600 focus:outline-none focus:ring-1 focus:ring-amber-400 transition-all border border-slate-200"
@@ -710,7 +756,6 @@
                                 </div>
                             </div>
 
-                            {}
                             <div className="w-full flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2 border-t border-slate-100 pt-3">
                                 {/* Tab Navigasi Menu */}
                                 <div className={`${isMobileMenuOpen ? 'flex' : 'hidden'} sm:flex flex-col sm:flex-row bg-slate-100 p-1 rounded-xl w-full sm:w-auto gap-0.5`}>
@@ -744,7 +789,6 @@
                             </div>
                         </div>
 
-                        {}
                         <main className="w-full">
                             <div className="bg-white rounded-2xl shadow-xs border border-slate-150 overflow-hidden print:border-none print:shadow-none print:bg-transparent print:rounded-none">
                                 
@@ -837,7 +881,6 @@
                                     </div>
                                 )}
 
-                                {}
                                 {activeTab === 'rekap' && (
                                     <div className="p-3 sm:p-8 print:p-0">
                                         <div className="flex flex-row justify-between items-center mb-4 pb-3 border-b border-slate-100 gap-2 print:hidden">
@@ -936,7 +979,6 @@
                                     </div>
                                 )}
 
-                                {}
                                 {activeTab === 'anggota' && !isViewerMode && (
                                     <div className="p-3 sm:p-8">
                                         <div className="flex flex-col gap-3 mb-4 pb-3 border-b border-slate-100">
@@ -1052,7 +1094,6 @@
                             </div>
                         </main>
 
-                        {}
                         <footer className="mt-8 py-4 text-center print:hidden bg-slate-900 border-t border-amber-500/20 w-full rounded-2xl shadow-md">
                             <p className="text-[10px] sm:text-xs font-semibold text-amber-400 tracking-wider font-mono uppercase px-2 leading-relaxed">
                                 Aplikasi Absensi Digital dikembangkan oleh <br className="sm:hidden" /> <span className="font-black text-yellow-300 underline decoration-amber-500 underline-offset-2">ALFIAN</span> - Guru Bimbingan Konseling
